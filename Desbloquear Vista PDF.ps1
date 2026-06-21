@@ -5,10 +5,15 @@ $appName = "Desbloquear Vista PDF"
 $taskName = "DesbloquearVistaPDF"
 $legacyTaskName = "DesbloqueadorDescargas"
 
+# Ruta base compatible con PS1 y EXE compilado con ps2exe
+$scriptDir = if ($PSScriptRoot) { $PSScriptRoot }
+             elseif ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path }
+             else { [System.AppDomain]::CurrentDomain.BaseDirectory.TrimEnd('\') }
+
 # ---------------------------------------------------------------------------
 # Config persistente
 # ---------------------------------------------------------------------------
-$configPath = Join-Path $PSScriptRoot "config.json"
+$configPath = Join-Path $scriptDir "config.json"
 
 function CargarConfig {
     if (Test-Path $configPath) {
@@ -414,7 +419,7 @@ $btnToggle.Add_Click({
 })
 
 $btnStartup.Add_Click({
-    $scriptPath = $PSCommandPath
+    $scriptPath = if ($PSCommandPath) { $PSCommandPath } else { $MyInvocation.MyCommand.Path }
     if (TareaExiste) {
         schtasks /delete /tn $taskName /f 2>$null | Out-Null
         schtasks /delete /tn $legacyTaskName /f 2>$null | Out-Null
