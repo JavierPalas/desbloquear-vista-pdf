@@ -74,20 +74,20 @@ function ObtenerCarpetaParaAbrir($rutas) {
 }
 
 function SeleccionarCarpetaExplorador($titulo, $rutaInicial = $null) {
-    $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
-    $dlg.Description = $titulo
-    $dlg.ShowNewFolderButton = $true
-    if ($dlg.PSObject.Properties.Name -contains "UseDescriptionForTitle") {
-        $dlg.UseDescriptionForTitle = $true
-    }
-    if ($dlg.PSObject.Properties.Name -contains "AutoUpgradeEnabled") {
-        $dlg.AutoUpgradeEnabled = $true
-    }
+    # Explorador moderno de Windows (mismo estilo que "Abrir archivo"),
+    # configurado para seleccionar carpetas en vez de archivos.
+    $dlg = New-Object System.Windows.Forms.OpenFileDialog
+    $dlg.Title          = $titulo
+    $dlg.ValidateNames  = $false
+    $dlg.CheckFileExists = $false
+    $dlg.CheckPathExists = $true
+    $dlg.Filter         = "Carpetas|*.$([guid]::NewGuid().ToString('N'))"
+    $dlg.FileName       = "Seleccionar esta carpeta"
     if ($rutaInicial -and (Test-Path $rutaInicial -PathType Container)) {
-        $dlg.SelectedPath = $rutaInicial
+        $dlg.InitialDirectory = $rutaInicial
     }
     if ($dlg.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
-        return $dlg.SelectedPath
+        return [System.IO.Path]::GetDirectoryName($dlg.FileName)
     }
     return $null
 }
@@ -249,6 +249,9 @@ $onDragEnter = {
     if ($e.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
         $e.Effect = [System.Windows.Forms.DragDropEffects]::Copy
         $dropPanel.BackColor = [System.Drawing.Color]::FromArgb(0, 70, 160)
+    } else {
+        $formatos = $e.Data.GetFormats() -join ", "
+        Log "Arrastre no reconocido (formatos ofrecidos: $formatos)" "Orange"
     }
 }
 $onDragLeave = { $dropPanel.BackColor = $clrPanel }
@@ -291,6 +294,16 @@ $txtCarpeta.BorderStyle = "None"
 $txtCarpeta.Location    = New-Object System.Drawing.Point(16, 44)
 $txtCarpeta.Size        = New-Object System.Drawing.Size(412, 22)
 $watchPanel.Controls.Add($txtCarpeta)
+
+$txtCarpeta.Add_Leave({
+    $ruta = $txtCarpeta.Text.Trim()
+    if ($ruta -and $ruta -ne $script:config.carpetaVigilada -and (Test-Path $ruta -PathType Container)) {
+        $script:config.carpetaVigilada = $ruta
+        GuardarConfig $script:config
+        Log "Carpeta cambiada a: $ruta" "Cyan"
+        if ($script:watcherActivo) { $btnToggle.PerformClick(); $btnToggle.PerformClick() }
+    }
+})
 
 $btnExaminar = NuevoBoton "..." 440 40 42 28 $clrGris
 $btnExaminar.Add_Click({
@@ -501,8 +514,8 @@ $form.Add_Shown({
     ActualizarUI
     Log "$appName listo." "LightGreen"
     Log "Carpeta vigilada: $($script:config.carpetaVigilada)" "Cyan"
+    $btnToggle.PerformClick()
     if ($silencioso) {
-        $btnToggle.PerformClick()
         $form.WindowState   = "Minimized"
         $form.ShowInTaskbar = $false
     }
